@@ -3,13 +3,13 @@ import math
 import os.path as path
 import sys
 
-from scipy.stats import kstest, anderson
+from scipy.stats import kstest, chisquare
 
 
 class ReliabilityApproximator:
-    def __init__(self, data_file_path):
+    def __init__(self, data_file_path, bins_cardinality):
         self.data_file_path = data_file_path
-        self.bins_cardinality = 100
+        self.bins_cardinality = bins_cardinality
         self.data = []
         self.data_len = None
         self.interval_size = None
@@ -25,16 +25,17 @@ class ReliabilityApproximator:
         result = 1 - float(counter) / index
         return result
 
-    def distributionFitting(self, useKTest, useChiTest, useADTest, cdfGenerator):
-        with open(self.data_file_path) as f:
-            data = f.readlines()
-
-        if useKTest:
-            print("Ktest pvalue: " + kstest(data, cdfGenerator)[1])
-        if useChiTest:
-            pass
-        if useADTest:
-            print("AD test critical values : " + anderson(data, distribIdentifier)[1])
+    def distribution_fitting(self, use_k_test, use_chi_test, distribution_identifier, distribution_object,
+                             parameters):
+        if use_k_test:
+            with open(self.data_file_path) as f:
+                data = [int(datum) for datum in f.readlines()]
+            print("Ktest pvalue: " + str(kstest(data, distribution_identifier, parameters)[1]))
+        if use_chi_test:
+            expected_frequencies = [item * self.data_len for item in
+                                    self.compute_expected_frequencies(distribution_object, parameters)]
+            print ("CHI2 TEST pvalue = " +
+                   str(chisquare([datum['content'] for datum in self.binned_data], expected_frequencies)[1]))
 
     def compute_empirical_pdf(self):
         with open(self.data_file_path) as f:
@@ -62,33 +63,34 @@ class ReliabilityApproximator:
                 if item['starts'] < datum <= item['ends']:
                     item['content'] += 1
 
-    def empirical_cdf(self, value):
-        start = self.data[0]
-        end = self.data[self.data_len - 1]
-        counter = 0
-        if value < start:
-            return 0
-        if value >= end:
-            return 1
-
-        for item in self.binned_data:
-            if item['ends'] <= value and item['content'] != 0:
-                counter += item['content']
-        return float(counter) / self.data_len
+    def compute_expected_frequencies(self, distribution_object, parameters):
+        self.compute_empirical_pdf()
+        return [
+            distribution_object.cdf(datum['ends'], *parameters) - distribution_object.cdf(datum['starts'], *parameters)
+            for datum in self.binned_data]
 
 
 def main():
     argv = sys.argv
     argc = len(argv)
 
-    if argc != 2:
-        print "SCRIPT USAGE: [DATA_FILE_PATH]"
+    if argc != 3:
+        print "SCRIPT USAGE: [DATA_FILE_PATH] [# OF BINS]"
         exit(-1)
     if path.isfile(argv[1]) is False:
         print "PLEASE PROVIDE A VALID DATA_FILE_PATH"
         exit(-1)
-    instance = ReliabilityApproximator(argv[1])
-    instance.compute_empirical_pdf()
+    if check_if_integer(argv[2]) is False:
+        print "PLEASE PROVIDE A VALID INTEGER FOR [# OF BINS]"
+        exit(-1)
+
+
+def check_if_integer(number):
+    try:
+        int(number)
+        return True
+    except ValueError:
+        return False
 
 
 if __name__ == "__main__":

@@ -1,11 +1,12 @@
 from unittest import TestCase
 from ReliabilityApproximator import ReliabilityApproximator
+from scipy.stats import uniform
 
 
 class TestReliabilityApproximator(TestCase):
     @classmethod
     def setUpClass(cls):
-        cls._instance = ReliabilityApproximator("./test_file.txt")
+        cls._instance = ReliabilityApproximator("./test_file.txt",100)
         cls._instance.bins_cardinality = 10
 
     def test_reliability_approximation(self):
@@ -37,8 +38,8 @@ class TestReliabilityApproximator(TestCase):
             elif item['starts'] == 118.0:
                 self.assertEqual(1, item['content'])
 
-    def test_empirical_cdf(self):
-        self._instance.compute_empirical_pdf()
-        self.assertEqual(0, self._instance.empirical_cdf(8))
-        self.assertEqual(1, self._instance.empirical_cdf(200))
-        self.assertEqual(4.0/6, self._instance.empirical_cdf(65))
+    def test_chi_test(self):
+        self._instance.distribution_fitting(False, True,None,uniform,[9,130])
+
+    def test_k_test(self):
+        self._instance.distribution_fitting(True,False,'uniform',None,[9,130])
