@@ -16,6 +16,14 @@ class ReliabilityApproximator:
         self.binned_data = []
 
     def approximate(self, time):
+        """
+        Computes an approximation of the reliability of the system by applying the formula:
+        R(t) = 1 - Femp(t)
+
+        Where Femo(t) is the empirical CDF computed from timestamps relative to errors in the system
+        @param time: The time instant for which we want to compute the reliability of the system
+        @return: The probability that the system has not failed within time t (reliability in t)
+        """
         counter = 0
         with open(self.data_file_path) as f:
             for index, line in enumerate(f):
@@ -25,19 +33,43 @@ class ReliabilityApproximator:
         result = 1 - float(counter) / index
         return result
 
-    def distribution_fitting(self, use_k_test, use_chi_test, distribution_identifier, distribution_object,
-                             parameters):
-        if use_k_test:
+    def distribution_fitting(self, use_ks_test, use_chi_test, ks_distribution_identifier,
+                             cs_expected_frequencies, distribution_parameters):
+        """
+        Computes the p-value for either the chi square and kolmogorov smirnov goodness of fit test. Note
+        that the implementation of this method is tighly coupled with Scipy's provided method
+        for doing the above mentioned tests.
+        @param use_ks_test: If the kolmogorov smirnov test should be used
+        @param use_chi_test: If the chi-squared test should be used
+        @param ks_distribution_identifier: A Scipy dependent distribution identifier for the distribution for which
+        the k-s test should be done
+        @param cs_expected_frequencies: The expected frequencies of the data into the bins of the emprical PDF
+        in order to perform the chi-square test
+        @param distribution_parameters: The Scipy dependent parameters of the distribution to be used for the k-s test
+        @return: Nothing
+        """
+        to_return = []
+        if use_ks_test:
             with open(self.data_file_path) as f:
                 data = [int(datum) for datum in f.readlines()]
-            print("Ktest pvalue: " + str(kstest(data, distribution_identifier, parameters)[1]))
+                p_value = kstest(data, ks_distribution_identifier, distribution_parameters)[1]
+                to_return.append(p_value)
         if use_chi_test:
-            expected_frequencies = [item * self.data_len for item in
-                                    self.compute_expected_frequencies(distribution_object, parameters)]
-            print ("CHI2 TEST pvalue = " +
-                   str(chisquare([datum['content'] for datum in self.binned_data], expected_frequencies)[1]))
+            # organize data into bins
+            self.compute_empirical_pdf()
+            # extract the content of these bins
+            real_frequencies = [datum['content'] for datum in self.binned_data]
+            # execute the cs test with the given expected frequencies and retrieve the p-value
+            p_value = chisquare(real_frequencies, cs_expected_frequencies)[1]
+            to_return.append(p_value)
+        return to_return
 
     def compute_empirical_pdf(self):
+        """
+        Computes the emprical PDF of the data provided to objects of this class, i.e
+        divides the data into bins and makes these binned data available in the context of this class
+        @return: Nothing
+        """
         with open(self.data_file_path) as f:
             data = f.readlines()
         self.data = [int(datum) for datum in data]
@@ -62,12 +94,6 @@ class ReliabilityApproximator:
                 item = self.binned_data[i]
                 if item['starts'] < datum <= item['ends']:
                     item['content'] += 1
-
-    def compute_expected_frequencies(self, distribution_object, parameters):
-        self.compute_empirical_pdf()
-        return [
-            distribution_object.cdf(datum['ends'], *parameters) - distribution_object.cdf(datum['starts'], *parameters)
-            for datum in self.binned_data]
 
 
 def main():
