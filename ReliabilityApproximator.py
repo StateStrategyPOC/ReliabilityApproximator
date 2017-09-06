@@ -30,7 +30,7 @@ class ReliabilityApproximator:
                 if int(line) <= time:
                     counter += 1
 
-        result = 1 - float(counter) / index
+        result = 1 - float(counter) / (index+1)
         return result
 
     def distribution_fitting(self, use_ks_test, use_chi_test, ks_distribution_identifier,
